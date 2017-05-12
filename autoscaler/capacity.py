@@ -30,6 +30,7 @@ def is_possible(pod):
     returns whether the pod is possible under the maximum allowable capacity
     """
 
+    # TODO: move this logic further up in the process.
     if pod.resources.get('alpha.kubernetes.io/nvidia-gpu') is None:
         return False
 
