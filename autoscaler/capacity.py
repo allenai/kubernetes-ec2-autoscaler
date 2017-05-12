@@ -26,8 +26,13 @@ COMPUTING_SELECTOR_KEY = 'openai/computing'
 
 def is_possible(pod):
     """
+    returns False if the pod does not require GPUs. Otherwise,
     returns whether the pod is possible under the maximum allowable capacity
     """
+
+    if pod.resources.get('alpha.kubernetes.io/nvidia-gpu') is None:
+        return False
+
     computing = pod.selectors.get(COMPUTING_SELECTOR_KEY, 'false')
     selector = pod.selectors.get(DEFAULT_TYPE_SELECTOR_KEY)
     class_ = pod.selectors.get(DEFAULT_CLASS_SELECTOR_KEY)
