@@ -75,6 +75,16 @@ class KubePod(object):
         logger.info('Deleting Pod %s/%s', self.namespace, self.name)
         return self.original.delete()
 
+    def is_pending_unassigned_and_scaleworthy(self, label):
+        pending_and_unassigned = self.status == KubePodStatus.PENDING and (not self.node_name)
+        if label is not None:
+            return (pending_and_unassigned and self.is_scaleworthy(label))
+        else:
+            return pending_and_unassigned
+
+    def is_scaleworthy(self, label):
+        return (self.labels.get(label) is not None)
+
     def __hash__(self):
         return hash(self.uid)
 

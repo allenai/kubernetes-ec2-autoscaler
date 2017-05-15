@@ -134,6 +134,7 @@ primary region and "us-east-1" as the secondary.
 - --slack-hook: Optional [Slack incoming webhook](https://api.slack.com/incoming-webhooks) for scaling notifications
 - --dry-run: Flag for testing so resources aren't actually modified. Actions will instead be logged only.
 - -v: Sets the verbosity. Specify multiple times for more log output, e.g. `-vvv`
+- --scale-label: Optional label to look for on pods. If this flag is set, the autoscaler will only count unscheduled pods with the given label when determining if more nodes are needed.
 
 
 

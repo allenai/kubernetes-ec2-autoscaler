@@ -48,11 +48,12 @@ DEBUG_LOGGING_MAP = {
                    "for more verbosity.",
               type=click.IntRange(0, 3, clamp=True),
               count=True)
+@click.option("--scale-label", default=None)
 def main(cluster_name, regions, sleep, kubeconfig, pod_namespace,
          aws_access_key, aws_secret_key, datadog_api_key,
          idle_threshold, type_idle_threshold,
          over_provision, instance_init_time, no_scale, no_maintenance,
-         slack_hook, slack_bot_token, dry_run, verbose):
+         slack_hook, slack_bot_token, dry_run, verbose, scale_label):
     logger_handler = logging.StreamHandler(sys.stderr)
     logger_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(logger_handler)
@@ -78,6 +79,7 @@ def main(cluster_name, regions, sleep, kubeconfig, pod_namespace,
                       datadog_api_key=datadog_api_key,
                       notifier=notifier,
                       dry_run=dry_run,
+                      scale_label=scale_label
                       )
     backoff = sleep
     while True:

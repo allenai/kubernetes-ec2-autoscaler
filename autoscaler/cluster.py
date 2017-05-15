@@ -66,7 +66,8 @@ class Cluster(object):
                  instance_init_time, cluster_name, notifier,
                  scale_up=True, maintainance=True,
                  datadog_api_key=None,
-                 over_provision=5, dry_run=False):
+                 over_provision=5, dry_run=False,
+                 scale_label=None):
         if kubeconfig:
             # for using locally
             logger.debug('Using kubeconfig %s', kubeconfig)
@@ -112,6 +113,7 @@ class Cluster(object):
         self.stats.start()
 
         self.dry_run = dry_run
+        self.scale_label = scale_label
 
     def scale_loop(self):
         """
@@ -438,9 +440,10 @@ class Cluster(object):
         given a list of KubePod objects,
         return a map of (selectors hash -> pods) to be scheduled
         """
+
         pending_unassigned_pods = [
             p for p in pods
-            if p.status == KubePodStatus.PENDING and (not p.node_name)
+            if p.is_pending_unassigned_and_scaleworthy(self.scale_label)
         ]
 
         # we only consider a pod to be schedulable if it's pending and
