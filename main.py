@@ -16,6 +16,29 @@ DEBUG_LOGGING_MAP = {
     3: logging.DEBUG
 }
 
+class DictParamType(click.ParamType):
+    """A simple dict parameter type. Multiple entries are separated by commas (,), and
+    keys are separated from values by equals (=).
+    """
+
+    name = 'dict'
+
+    def convert(self, value, param, ctx):
+        result = {}
+
+        if not value:
+            return result
+
+        entry_list = value.split(',')
+        for entry in entry_list:
+            try:
+                entry_key, entry_value = entry.split('=')
+                result[entry_key] = entry_value
+            except ValueError:
+                self.fail('%s is not a key=value pair' % value, param, ctx)
+        return result
+
+DICT_PARAM = DictParamType()
 
 @click.command()
 @click.option("--cluster-name")
@@ -48,12 +71,16 @@ DEBUG_LOGGING_MAP = {
                    "for more verbosity.",
               type=click.IntRange(0, 3, clamp=True),
               count=True)
+@click.option('--drainable-labels', default='', type=DICT_PARAM,
+              help='Label keys and values that will be considered drainable when '
+                   'scaling down a node. This should be a comma-separated key=value '
+                   'list.')
 @click.option("--scale-label", default=None)
 def main(cluster_name, regions, sleep, kubeconfig, pod_namespace,
          aws_access_key, aws_secret_key, datadog_api_key,
          idle_threshold, type_idle_threshold,
          over_provision, instance_init_time, no_scale, no_maintenance,
-         slack_hook, slack_bot_token, dry_run, verbose, scale_label):
+         slack_hook, slack_bot_token, dry_run, verbose, drainable_labels, scale_label):
     logger_handler = logging.StreamHandler(sys.stderr)
     logger_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(logger_handler)
@@ -79,6 +106,7 @@ def main(cluster_name, regions, sleep, kubeconfig, pod_namespace,
                       datadog_api_key=datadog_api_key,
                       notifier=notifier,
                       dry_run=dry_run,
+                      drainable_labels=drainable_labels,
                       scale_label=scale_label
                       )
     backoff = sleep

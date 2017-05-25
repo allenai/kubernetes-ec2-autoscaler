@@ -23,8 +23,9 @@ _CORDON_LABEL = 'openai/cordoned-by-autoscaler'
 class KubePod(object):
     _DRAIN_GRACE_PERIOD = datetime.timedelta(seconds=60*60)
 
-    def __init__(self, pod):
+    def __init__(self, pod, drainable_labels={}):
         self.original = pod
+        self.drainable_labels = drainable_labels
 
         metadata = pod.obj['metadata']
         self.name = metadata['name']
@@ -69,6 +70,11 @@ class KubePod(object):
         return not self.start_time or (datetime.datetime.now(self.start_time.tzinfo) - self.start_time) < self._DRAIN_GRACE_PERIOD
 
     def is_drainable(self):
+        # Check for a drainable-override label.
+        for name in self.drainable_labels:
+            if self.labels.get(name) == self.drainable_labels[name]:
+                return True
+
         return self.is_replicated() and not self.is_critical() and not self.is_in_drain_grace_period()
 
     def delete(self):

@@ -67,7 +67,7 @@ class Cluster(object):
                  scale_up=True, maintainance=True,
                  datadog_api_key=None,
                  over_provision=5, dry_run=False,
-                 scale_label=None):
+                 drainable_labels={}, scale_label=None):
         if kubeconfig:
             # for using locally
             logger.debug('Using kubeconfig %s', kubeconfig)
@@ -113,6 +113,7 @@ class Cluster(object):
         self.stats.start()
 
         self.dry_run = dry_run
+        self.drainable_labels = drainable_labels
         self.scale_label = scale_label
 
     def scale_loop(self):
@@ -133,7 +134,10 @@ class Cluster(object):
 
             running_insts_map = self.get_running_instances_map(managed_nodes)
 
-            pods = map(KubePod, pykube.Pod.objects(self.api, namespace=self.pod_namespace))
+            def build_kube_pod(pykube_pod):
+                return KubePod(pykube_pod, self.drainable_labels)
+
+            pods = map(build_kube_pod, pykube.Pod.objects(self.api, namespace=self.pod_namespace))
 
             running_or_pending_assigned_pods = [
                 p for p in pods if (p.status == KubePodStatus.RUNNING or p.status == KubePodStatus.CONTAINER_CREATING) or (
@@ -550,24 +554,32 @@ class Cluster(object):
                 # do nothing
                 pass
             elif state == ClusterNodeState.UNDER_UTILIZED_DRAINABLE:
-                if not self.dry_run:
-                    if not asg:
+                if not asg:
+                    if not self.dry_run:
                         logger.warn(
                             'Cannot find ASG for node %s. Not cordoned.', node)
                     else:
-                        node.cordon()
-                        node.drain(pods_by_node.get(node.name, []),
-                                   notifier=self.notifier)
+                        logger.warn(
+                            '[Dry run] Cannot find ASG for node %s. Would have '
+                            'been unable to cordon.', node)
+                elif not self.dry_run:
+                    node.cordon()
+                    node.drain(pods_by_node.get(node.name, []),
+                               notifier=self.notifier)
                 else:
                     logger.info(
                         '[Dry run] Would have drained and cordoned %s', node)
             elif state == ClusterNodeState.IDLE_SCHEDULABLE:
-                if not self.dry_run:
-                    if not asg:
+                if not asg:
+                    if not self.dry_run:
                         logger.warn(
                             'Cannot find ASG for node %s. Not cordoned.', node)
                     else:
-                        node.cordon()
+                        logger.warn(
+                            '[Dry run] Cannot find ASG for node %s. Would have '
+                            'been unable to cordon.', node)
+                elif not self.dry_run:
+                    node.cordon()
                 else:
                     logger.info('[Dry run] Would have cordoned %s', node)
             elif state == ClusterNodeState.BUSY_UNSCHEDULABLE:
@@ -578,12 +590,16 @@ class Cluster(object):
                     logger.info('[Dry run] Would have uncordoned %s', node)
             elif state == ClusterNodeState.IDLE_UNSCHEDULABLE:
                 # remove it from asg
-                if not self.dry_run:
-                    if not asg:
+                if not asg:
+                    if not self.dry_run:
                         logger.warn(
                             'Cannot find ASG for node %s. Not terminated.', node)
                     else:
-                        asg.scale_node_in(node)
+                        logger.warn(
+                            '[Dry run] Cannot find ASG for node %s. Would have '
+                            'been unable to terminate.', node)
+                elif not self.dry_run:
+                    asg.scale_node_in(node)
                 else:
                     logger.info('[Dry run] Would have scaled in %s', node)
             elif state == ClusterNodeState.INSTANCE_TERMINATED:
