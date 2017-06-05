@@ -16,9 +16,10 @@ DEBUG_LOGGING_MAP = {
     3: logging.DEBUG
 }
 
-class DictParamType(click.ParamType):
-    """A simple dict parameter type. Multiple entries are separated by commas (,), and
-    keys are separated from values by equals (=).
+class MultimapParamType(click.ParamType):
+    """A multimap parameter type. Multiple entries are separated by commas (,),
+    and keys are separated from values by equals (=). Map values are sets of
+    all values given for the same key.
     """
 
     name = 'dict'
@@ -33,12 +34,14 @@ class DictParamType(click.ParamType):
         for entry in entry_list:
             try:
                 entry_key, entry_value = entry.split('=')
-                result[entry_key] = entry_value
+                if entry_key not in result:
+                    result[entry_key] = set()
+                result[entry_key].add(entry_value)
             except ValueError:
                 self.fail('%s is not a key=value pair' % value, param, ctx)
         return result
 
-DICT_PARAM = DictParamType()
+MULTIMAP_PARAM = MultimapParamType()
 
 @click.command()
 @click.option("--cluster-name")
@@ -71,7 +74,7 @@ DICT_PARAM = DictParamType()
                    "for more verbosity.",
               type=click.IntRange(0, 3, clamp=True),
               count=True)
-@click.option('--drainable-labels', default='', type=DICT_PARAM,
+@click.option('--drainable-labels', default='', type=MULTIMAP_PARAM,
               help='Label keys and values that will be considered drainable when '
                    'scaling down a node. This should be a comma-separated key=value '
                    'list.')

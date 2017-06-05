@@ -72,7 +72,7 @@ class KubePod(object):
     def is_drainable(self):
         # Check for a drainable-override label.
         for name in self.drainable_labels:
-            if self.labels.get(name) == self.drainable_labels[name]:
+            if self.labels.get(name) in self.drainable_labels[name]:
                 return True
 
         return self.is_replicated() and not self.is_critical() and not self.is_in_drain_grace_period()
