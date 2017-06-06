@@ -26,7 +26,6 @@ COMPUTING_SELECTOR_KEY = 'openai/computing'
 
 def is_possible(pod):
     """
-    returns False if the pod does not require GPUs. Otherwise,
     returns whether the pod is possible under the maximum allowable capacity
     """
 

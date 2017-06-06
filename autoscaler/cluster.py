@@ -54,11 +54,8 @@ class Cluster(object):
     # just prioritize the ones that we're confident about
     _GROUP_DEFAULT_PRIORITY = 10
     _GROUP_PRIORITIES = {
-        'g2.8xlarge': 2,
-        'm4.xlarge': 0,
-        'm4.2xlarge': 0,
-        'm4.4xlarge': 0,
-        'm4.10xlarge': 0
+        'p2.xlarge': 0,
+        'p2.8xlarge': 1
     }
 
     def __init__(self, regions, aws_access_key, aws_secret_key,

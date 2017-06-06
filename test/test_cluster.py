@@ -14,7 +14,7 @@ from autoscaler.notification import Notifier
 import autoscaler.utils as utils
 
 
-class TestCluster(unittest.TestCase):
+class TestClusterGeneral(unittest.TestCase):
     def setUp(self):
         # load dummy kube specs
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -329,3 +329,120 @@ class TestCluster(unittest.TestCase):
         self.assertEqual(response['AutoScalingGroups'][0]['DesiredCapacity'], 1)
         node.cordon.assert_called_once_with()
         node.drain.assert_called_once_with(pods, notifier=mock.ANY)
+
+# Test our instance type priorities: p2.xlarge ASGs should be scaled up before p2.8xlarge ASGs.
+class TestClusterWithPriorities(unittest.TestCase):
+    def setUp(self):
+        # load dummy kube specs
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        with open(os.path.join(dir_path, 'data/busybox.yaml'), 'r') as f:
+            self.dummy_pod = yaml.load(f.read())
+
+        # this isn't actually used here
+        # only needed to create the KubePod object...
+        self.api = pykube.HTTPClient(pykube.KubeConfig.from_file('~/.kube/config'))
+
+        # start creating our mock ec2 environment
+        self.mocks = [moto.mock_ec2(), moto.mock_autoscaling()]
+        for moto_mock in self.mocks:
+            moto_mock.start()
+
+        client = boto3.client('autoscaling', region_name='us-west-2')
+        self.asg_client = client
+
+        client.create_launch_configuration(
+            LaunchConfigurationName='dummy-lc-large-gpu',
+            ImageId='ami-deadbeef',
+            KeyName='dummy-key',
+            SecurityGroups=[
+                'sg-cafebeef',
+            ],
+            InstanceType='p2.8xlarge'
+        )
+
+        client.create_launch_configuration(
+            LaunchConfigurationName='dummy-lc-small-gpu',
+            ImageId='ami-deadbeef',
+            KeyName='dummy-key',
+            SecurityGroups=[
+                'sg-cafebeef',
+            ],
+            InstanceType='p2.xlarge'
+        )
+
+        client.create_auto_scaling_group(
+            AutoScalingGroupName='dummy-asg-large-gpu',
+            LaunchConfigurationName='dummy-lc-large-gpu',
+            MinSize=0,
+            MaxSize=2,
+            VPCZoneIdentifier='subnet-beefbeef',
+            Tags=[
+                {
+                    'Key': 'KubernetesCluster',
+                    'Value': 'dummy-cluster-with-priorities',
+                    'PropagateAtLaunch': True
+                },
+                {
+                    'Key': 'KubernetesRole',
+                    'Value': 'worker',
+                    'PropagateAtLaunch': True
+                }
+            ]
+        )
+
+        client.create_auto_scaling_group(
+            AutoScalingGroupName='dummy-asg-small-gpu',
+            LaunchConfigurationName='dummy-lc-small-gpu',
+            MinSize=0,
+            MaxSize=2,
+            VPCZoneIdentifier='subnet-beefbeef',
+            Tags=[
+                {
+                    'Key': 'KubernetesCluster',
+                    'Value': 'dummy-cluster-with-priorities',
+                    'PropagateAtLaunch': True
+                },
+                {
+                    'Key': 'KubernetesRole',
+                    'Value': 'worker',
+                    'PropagateAtLaunch': True
+                }
+            ]
+        )
+
+        self.cluster = Cluster(
+            aws_access_key='',
+            aws_secret_key='',
+            regions=['us-west-2'],
+            kubeconfig='~/.kube/config',
+            pod_namespace=None,
+            idle_threshold=60,
+            instance_init_time=60,
+            type_idle_threshold=60,
+            cluster_name='dummy-cluster-with-priorities',
+            notifier=Notifier(),
+            dry_run=False
+        )
+
+    def tearDown(self):
+        for moto_mock in self.mocks:
+            moto_mock.stop()
+
+    def test_scale_up(self):
+        pod = KubePod(pykube.Pod(self.api, self.dummy_pod))
+        selectors_hash = utils.selectors_to_hash(pod.selectors)
+        asgs = self.cluster.autoscaling_groups.get_all_groups([])
+        self.cluster.fulfill_pending(asgs, selectors_hash, [pod])
+
+        response = self.asg_client.describe_auto_scaling_groups()
+        self.assertEqual(len(response['AutoScalingGroups']), 2)
+        big_gpu_asg, small_gpu_asg = {}, {}
+        if (response['AutoScalingGroups'][0]['AutoScalingGroupName'] == 'dummy-asg-small-gpu'):
+            small_gpu_asg = response['AutoScalingGroups'][0]
+            big_gpu_asg = response['AutoScalingGroups'][1]
+        else:
+            small_gpu_asg = response['AutoScalingGroups'][1]
+            big_gpu_asg = response['AutoScalingGroups'][0]
+
+        self.assertGreater(small_gpu_asg['DesiredCapacity'], 0)
+        self.assertEqual(big_gpu_asg['DesiredCapacity'], 0)
