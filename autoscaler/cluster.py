@@ -53,6 +53,9 @@ class Cluster(object):
     # HACK: before we're ready to favor bigger instances in all cases
     # just prioritize the ones that we're confident about
     _GROUP_DEFAULT_PRIORITY = 10
+
+    # By default, if p2.xlarges can handle the job, we would like to
+    # scale them up ahead of p2.8xlarges.
     _GROUP_PRIORITIES = {
         'p2.xlarge': 0,
         'p2.8xlarge': 1
@@ -64,7 +67,8 @@ class Cluster(object):
                  scale_up=True, maintainance=True,
                  datadog_api_key=None,
                  over_provision=5, dry_run=False,
-                 drainable_labels={}, scale_label=None):
+                 drainable_labels={}, scale_label=None,
+                 instance_type_priorities={}):
         if kubeconfig:
             # for using locally
             logger.debug('Using kubeconfig %s', kubeconfig)
@@ -112,6 +116,14 @@ class Cluster(object):
         self.dry_run = dry_run
         self.drainable_labels = drainable_labels
         self.scale_label = scale_label
+        if not instance_type_priorities:
+            self.instance_type_priorities = self._GROUP_PRIORITIES
+        else:
+            multiple_priorities = len(filter(lambda x: len(instance_type_priorities[x]) > 1, instance_type_priorities.keys()))
+            if multiple_priorities > 0:
+                raise ValueError('You have specified more than one priority for %d instance types. Please specify a single priority for each instance type that you care about.' % multiple_priorities)
+            self.instance_type_priorities = {instance: min([int(value) for value in values])
+                for instance, values in instance_type_priorities.items()}
 
     def scale_loop(self):
         """
@@ -350,7 +362,7 @@ class Cluster(object):
             # Some ASGs are pinned to be in a single AZ. Sort them in front of
             # multi-ASG groups that won't have this tag set.
             pinned_to_az = group.selectors.get('aws/az', 'z')
-            priority = self._GROUP_PRIORITIES.get(
+            priority = self.instance_type_priorities.get(
                 group.selectors.get('aws/type'), self._GROUP_DEFAULT_PRIORITY)
             return (region, pinned_to_az, not group.is_spot, priority, group.name)
         return sorted(groups, key=sort_key)

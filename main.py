@@ -79,11 +79,16 @@ MULTIMAP_PARAM = MultimapParamType()
                    'scaling down a node. This should be a comma-separated key=value '
                    'list.')
 @click.option("--scale-label", default=None)
+@click.option('--instance-type-priorities', default='', type=MULTIMAP_PARAM,
+              help='This should be a comma-separated key=value list. '
+                   'ASGs with instance types that have priorities closer to 0 will '
+                   'get scaled up first.')
 def main(cluster_name, regions, sleep, kubeconfig, pod_namespace,
          aws_access_key, aws_secret_key, datadog_api_key,
          idle_threshold, type_idle_threshold,
          over_provision, instance_init_time, no_scale, no_maintenance,
-         slack_hook, slack_bot_token, dry_run, verbose, drainable_labels, scale_label):
+         slack_hook, slack_bot_token, dry_run, verbose, drainable_labels, scale_label,
+         instance_type_priorities):
     logger_handler = logging.StreamHandler(sys.stderr)
     logger_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(logger_handler)
@@ -110,7 +115,8 @@ def main(cluster_name, regions, sleep, kubeconfig, pod_namespace,
                       notifier=notifier,
                       dry_run=dry_run,
                       drainable_labels=drainable_labels,
-                      scale_label=scale_label
+                      scale_label=scale_label,
+                      instance_type_priorities=instance_type_priorities
                       )
     backoff = sleep
     while True:

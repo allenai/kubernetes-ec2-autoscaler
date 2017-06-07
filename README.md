@@ -135,6 +135,7 @@ primary region and "us-east-1" as the secondary.
 - --dry-run: Flag for testing so resources aren't actually modified. Actions will instead be logged only.
 - -v: Sets the verbosity. Specify multiple times for more log output, e.g. `-vvv`
 - --scale-label: Optional label to look for on pods. If this flag is set, the autoscaler will only count unscheduled pods with the given label when determining if more nodes are needed.
+- --instance-type-priorities: Optional list of instance types mapped to integer priority, with lower numbers taking precedence in creating new machines. Any instance types in an ASG that are not specified will use a priority of 10. Defaults to `p2.xlarge=0,p2.8xlarge=1`. Should be a key=value comma-separated list.
 
 
 
